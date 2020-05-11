@@ -4,7 +4,7 @@ import rollupScss from "rollup-plugin-scss";
 
 export default [
   {
-    input: "./wysiwyg.js",
+    input: "./src/wysiwyg.js",
     plugins: [rollupScss()],
     output: {
       file: "./dist/wysiwyg.js",
@@ -13,7 +13,7 @@ export default [
     },
   },
   {
-    input: "./wysiwyg.js",
+    input: "./src/wysiwyg.js",
     plugins: [rollupScss(), terser()],
     output: {
       file: "./dist/wysiwyg.min.js",
