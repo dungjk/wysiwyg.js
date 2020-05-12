@@ -1,10 +1,8 @@
 var wysiwyg = (function () {
   'use strict';
 
-  /*! wysiwyg.js | https://github.com/wysiwygjs/wysiwyg.js | Apache License (v2) */
-
   // http://stackoverflow.com/questions/97962/debounce-clicks-when-submitting-a-web-form
-  var debounce = function (callback, wait, cancelprevious) {
+  function debounce(callback, wait, cancelprevious) {
     var timeout;
     return function () {
       if (timeout) {
@@ -18,31 +16,54 @@ var wysiwyg = (function () {
         callback.apply(context, args);
       }, wait);
     };
-  };
+  }
+
+  // save/restore selection
+  // http://stackoverflow.com/questions/13949059/persisting-the-changes-of-range-objects-after-selection-in-html/13950376#13950376
+  function saveSelection(containerNode) {
+    var sel = window.getSelection();
+    if (sel.rangeCount > 0) return sel.getRangeAt(0);
+    return null;
+  }
+  function restoreSelection(containerNode, savedSel) {
+    if (!savedSel) return;
+    var sel = window.getSelection();
+    sel.removeAllRanges();
+    sel.addRange(savedSel);
+  }
 
   // http://stackoverflow.com/questions/12949590/how-to-detach-event-in-ie-6-7-8-9-using-javascript
-  var addEvent = function (element, type, handler, useCapture) {
+  function addEvent(element, type, handler, useCapture) {
     element.addEventListener(type, handler, useCapture ? true : false);
-  };
-  var removeEvent = function (element, type, handler, useCapture) {
+  }
+  function removeEvent(element, type, handler, useCapture) {
     element.removeEventListener(type, handler, useCapture ? true : false);
-  };
+  }
   // prevent default
-  var cancelEvent = function (e) {
+  function cancelEvent(e) {
     e.preventDefault();
     e.stopPropagation();
-  };
+  }
+
+  function addClass(element, classname) {
+    if (element.classList) element.classList.add(classname);
+    // IE9
+    else element.className += " " + classname;
+  }
+  function removeClass(element, classname) {
+    if (element.classList) element.classList.remove(classname);
+  }
 
   // http://stackoverflow.com/questions/2234979/how-to-check-in-javascript-if-one-element-is-a-child-of-another
-  var isOrContainsNode = function (ancestor, descendant, within) {
+  function isOrContainsNode(ancestor, descendant, within) {
     var node = within ? descendant.parentNode : descendant;
     while (node) {
       if (node === ancestor) return true;
       node = node.parentNode;
     }
     return false;
-  };
-  var isMediaNode = function (node) {
+  }
+  function isMediaNode(node) {
     var name = node.nodeName;
     return (
       name == "IMG" ||
@@ -55,21 +76,249 @@ var wysiwyg = (function () {
       name == "OBJECT" ||
       name == "EMBED"
     );
-  };
+  }
 
-  // save/restore selection
-  // http://stackoverflow.com/questions/13949059/persisting-the-changes-of-range-objects-after-selection-in-html/13950376#13950376
-  var saveSelection = function (containerNode) {
-    var sel = window.getSelection();
-    if (sel.rangeCount > 0) return sel.getRangeAt(0);
-    return null;
-  };
-  var restoreSelection = function (containerNode, savedSel) {
-    if (!savedSel) return;
-    var sel = window.getSelection();
-    sel.removeAllRanges();
-    sel.addRange(savedSel);
-  };
+  /**
+   * Append DOM node to parent
+   * @param {HTMLElement} parent
+   * @param {HTMLElement} child
+   */
+  function appendChild(parent, child) {
+    parent && parent.appendChild(child);
+  }
+
+  /**
+   * Insert an DOM element into parent before refChild
+   * @param {HTMLElement} parent
+   * @param {HTMLElement} newChild
+   * @param {HTMLElement} refChild
+   */
+  function insertBefore(parent, newChild, refChild) {
+    parent.insertBefore(newChild, refChild);
+  }
+
+  /**
+   * Set DOM element attribute value
+   * @param {HTMLElement} element
+   * @param {String} name
+   * @param {String} value
+   */
+  function setAttribute(element, name, value) {
+    element.setAttribute(name, value);
+  }
+
+  /**
+   * Set DOM element style
+   * @param {HTMLElement} element 
+   * @param {String} name 
+   * @param {String} value 
+   */
+  function setStyle(element, name, value){
+    element.style[name] = value;
+  }
+
+  const MathFloor = Math.floor;
+  const MathMax = Math.max;
+  const MathMin = Math.min;
+  const MathPI = Math.PI;
+
+  // http://stackoverflow.com/questions/17242144/javascript-convert-hsb-hsv-color-to-rgb-accurately
+  function HSVtoRGB(h, s, v) {
+    var r, g, b, i, f, p, q, t;
+    i = MathFloor(h * 6);
+    f = h * 6 - i;
+    p = v * (1 - s);
+    q = v * (1 - f * s);
+    t = v * (1 - (1 - f) * s);
+    switch (i % 6) {
+      case 0:
+        (r = v), (g = t), (b = p);
+        break;
+      case 1:
+        (r = q), (g = v), (b = p);
+        break;
+      case 2:
+        (r = p), (g = v), (b = t);
+        break;
+      case 3:
+        (r = p), (g = q), (b = v);
+        break;
+      case 4:
+        (r = t), (g = p), (b = v);
+        break;
+      case 5:
+        (r = v), (g = p), (b = q);
+        break;
+    }
+    var hr = MathFloor(r * 255).toString(16);
+    var hg = MathFloor(g * 255).toString(16);
+    var hb = MathFloor(b * 255).toString(16);
+    return (
+      "#" +
+      (hr.length < 2 ? "0" : "") +
+      hr +
+      (hg.length < 2 ? "0" : "") +
+      hg +
+      (hb.length < 2 ? "0" : "") +
+      hb
+    );
+  }
+
+  /**
+   * read file as data-url
+   * @param {File} file
+   * @param {(type: string, result: ArrayBuffer) => void} callback
+   */
+  function filecontents(file, callback) {
+    // base64 a 2GB video is insane: artificial clamp at 64MB
+    if (file.size > 0x4000000) {
+      callback();
+      return;
+    }
+
+    // read file as data-url
+    var normalize_dataurl = function (orientation) {
+      var filereader = new FileReader();
+      filereader.onload = function (e) {
+        if (!orientation || orientation == 1 || orientation > 8)
+          return callback(file.type, e.target.result);
+        // normalize
+        var img = new Image();
+        img.src = e.target.result;
+        img.onload = function () {
+          var width = img.width;
+          var height = img.height;
+          if (width > height) {
+            var max_width = 4096;
+            if (width > max_width) {
+              height *= max_width / width;
+              width = max_width;
+            }
+          } else {
+            var max_height = 4096;
+            if (height > max_height) {
+              width *= max_height / height;
+              height = max_height;
+            }
+          }
+          var canvas = document.createElement("canvas");
+          var ctx = canvas.getContext("2d");
+          canvas.width = width;
+          canvas.height = height;
+          ctx.save();
+          if (orientation > 4) {
+            canvas.width = height;
+            canvas.height = width;
+          }
+          switch (orientation) {
+            case 2:
+              ctx.translate(width, 0);
+              ctx.scale(-1, 1);
+              break;
+            case 3:
+              ctx.translate(width, height);
+              ctx.rotate(MathPI);
+              break;
+            case 4:
+              ctx.translate(0, height);
+              ctx.scale(1, -1);
+              break;
+            case 5:
+              ctx.rotate(0.5 * MathPI);
+              ctx.scale(1, -1);
+              break;
+            case 6:
+              ctx.rotate(0.5 * MathPI);
+              ctx.translate(0, -height);
+              break;
+            case 7:
+              ctx.rotate(0.5 * MathPI);
+              ctx.translate(width, -height);
+              ctx.scale(-1, 1);
+              break;
+            case 8:
+              ctx.rotate(-0.5 * MathPI);
+              ctx.translate(-width, 0);
+              break;
+          }
+          ctx.drawImage(img, 0, 0, width, height);
+          ctx.restore();
+          var dataURL = canvas.toDataURL("image/jpeg", 0.99);
+          callback(file.type, dataURL);
+        };
+      };
+      filereader.onerror = function (e) {
+        callback();
+      };
+      filereader.readAsDataURL(file);
+    };
+    if (!window.DataView) return normalize_dataurl();
+
+    // get orientation - https://stackoverflow.com/questions/7584794/accessing-jpeg-exif-rotation-data-in-javascript-on-the-client-side
+    var filereader = new FileReader();
+    filereader.onload = function (e) {
+      var contents = e.target.result;
+      var view = new DataView(contents);
+      // Not a JPEG at all?
+      if (view.getUint16(0, false) != 0xffd8) return normalize_dataurl();
+      var length = view.byteLength,
+        offset = 2;
+      while (offset < length) {
+        // Missing EXIF?
+        if (view.getUint16(offset + 2, false) <= 8) return normalize_dataurl();
+        var marker = view.getUint16(offset, false);
+        offset += 2;
+        if (marker == 0xffe1) {
+          if (view.getUint32((offset += 2), false) != 0x45786966)
+            return normalize_dataurl();
+          var little = view.getUint16((offset += 6), false) == 0x4949;
+          offset += view.getUint32(offset + 4, little);
+          var tags = view.getUint16(offset, little);
+          offset += 2;
+          for (var i = 0; i < tags; ++i) {
+            if (view.getUint16(offset + i * 12, little) == 0x0112) {
+              var orientation = view.getUint16(offset + i * 12 + 8, little);
+              return normalize_dataurl(orientation);
+            }
+          }
+        } else if ((marker & 0xff00) != 0xff00) break;
+        else offset += view.getUint16(offset, false);
+      }
+      return normalize_dataurl();
+    };
+    filereader.onerror = function (e) {
+      callback();
+    };
+    filereader.readAsArrayBuffer(file);
+  }
+
+  function filecontents_multiple(files, callback) {
+    // Keep callback-order - supporting browser without 'Promise'
+    var callbacks = [],
+      callnext = 0;
+    for (
+      var i = 0;
+      i < files.length;
+      ++i // can't use forEach() with 'FileList'
+    ) {
+      (function (i) {
+        filecontents(files[i], function (type, dataurl) {
+          callbacks[i] = function () {
+            if (dataurl) {
+              // empty on error
+              callback(type, dataurl);
+            }
+          };
+          // trigger callbacks in order
+          while (callnext in callbacks) {
+            callbacks[callnext]();
+            callnext++;
+          }
+          if (callnext == files.length) callbacks = null;
+        });
+      })(i);
+    }
+  }
 
   // http://stackoverflow.com/questions/12603397/calculate-width-height-of-the-selected-text-javascript
   // http://stackoverflow.com/questions/6846230/coordinates-of-selected-text-in-browser-page
@@ -207,7 +456,7 @@ var wysiwyg = (function () {
         len = sel.rangeCount;
       for (var i = 0; i < len; ++i) {
         var contents = sel.getRangeAt(i).cloneContents();
-        container.appendChild(contents);
+        appendChild(container, contents);
       }
       return container.innerHTML;
     }
@@ -249,13 +498,13 @@ var wysiwyg = (function () {
         node,
         lastNode;
       while ((node = el.firstChild)) {
-        lastNode = frag.appendChild(node);
+        lastNode = appendChild(frag, node);
       }
       if (isOrContainsNode(containerNode, range.commonAncestorContainer)) {
         range.deleteContents();
         range.insertNode(frag);
       } else {
-        containerNode.appendChild(frag);
+        appendChild(containerNode, frag);
       }
       // Preserve the selection
       if (lastNode) {
@@ -269,67 +518,65 @@ var wysiwyg = (function () {
   };
 
   // Create editor
-  var wysiwyg = function (element, options) {
-    var toolbar = options.toolbar,
-      buttons = options.buttons,
-      selectionbuttons = options.selectionbuttons,
-      suggester = options.suggester,
-      interceptenter = options.interceptenter,
-      hijackContextmenu = !!options.hijackmenu,
-      node_container =
-        typeof element == "string" ? document.querySelector(element) : element,
-      node_textarea = node_container.querySelector("textarea"),
-      commands,
-      hotkeys = {},
-      toolbar_top = toolbar == "top",
-      toolbar_bottom = toolbar == "bottom",
-      toolbar_demand = toolbar == "demand";
+  const wysiwyg = function (element, options) {
+    var toolbar = options.toolbar;
+    var buttons = options.buttons;
+    var selectionbuttons = options.selectionbuttons;
+    var suggester = options.suggester;
+    var interceptenter = options.interceptenter;
+    var hijackContextmenu = !!options.hijackmenu;
+    var editorWidth = options.width || 400;
+    var editorHeight = options.height || 400;
+
+    var nodeContainer =
+      typeof element == "string" ? document.querySelector(element) : element;
+
+    var node_textarea = nodeContainer.querySelector("textarea");
+    var commands;
+    var hotkeys = {};
+    var toolbar_top = toolbar == "top";
+    var toolbar_bottom = toolbar == "bottom";
+    var toolbar_demand = toolbar == "demand";
 
     // initialize editor
-    var add_class = function (element, classname) {
-      if (element.classList) element.classList.add(classname);
-      // IE9
-      else element.className += " " + classname;
-    };
-    var remove_class = function (element, classname) {
-      if (element.classList) element.classList.remove(classname);
-    };
-    var node_contenteditable = node_container.querySelector(
+    var nodeContenteditable = nodeContainer.querySelector(
       "[contenteditable=true]"
     );
-    if (!node_contenteditable) {
-      node_contenteditable = document.createElement("div");
-      node_contenteditable.setAttribute("contentEditable", "true");
+    if (!nodeContenteditable) {
+      nodeContenteditable = document.createElement("div");
+      setAttribute(nodeContenteditable, "contentEditable", "true");
       var placeholder = node_textarea.placeholder;
-      if (placeholder)
-        node_contenteditable.setAttribute("data-placeholder", placeholder);
-      node_container.insertBefore(
-        node_contenteditable,
-        node_container.firstChild
-      );
+      if (placeholder) {
+        setAttribute(nodeContenteditable, "data-placeholder", placeholder);
+      }
+      insertBefore(nodeContainer, nodeContenteditable, nodeContainer.firstChild);
     }
+
+    setStyle(nodeContainer, "width", `${editorWidth}px`);
+    setStyle(nodeContenteditable, "height", `${editorHeight}px`);
 
     // Simulate ':focus-within'
     var remove_focus_timeout = null;
     var add_class_focus = function () {
       if (remove_focus_timeout) clearTimeout(remove_focus_timeout);
       remove_focus_timeout = null;
-      add_class(node_container, "focus");
-      if (toolbar_demand) add_class(node_container, "focused");
+      addClass(nodeContainer, "focus");
+      if (toolbar_demand) addClass(nodeContainer, "focused");
     };
     var remove_class_focus = function () {
-      if (remove_focus_timeout || document.activeElement == node_contenteditable)
+      if (remove_focus_timeout || document.activeElement == nodeContenteditable)
         return;
       remove_focus_timeout = setTimeout(function () {
         remove_focus_timeout = null;
-        remove_class(node_container, "focus");
+        removeClass(nodeContainer, "focus");
       }, 50);
     };
-    addEvent(node_contenteditable, "focus", add_class_focus);
-    addEvent(node_contenteditable, "blur", remove_class_focus);
+    addEvent(nodeContenteditable, "focus", add_class_focus);
+    addEvent(nodeContenteditable, "blur", remove_class_focus);
     // register form-reset
-    if (node_textarea && node_textarea.form)
+    if (node_textarea && node_textarea.form) {
       addEvent(node_textarea.form, "reset", remove_class_focus);
+    }
 
     // Insert-link popup
     var create_insertlink = function (popup, modify_a_href) {
@@ -374,10 +621,10 @@ var wysiwyg = (function () {
           }
         }
         commands.closePopup().collapseSelection();
-        node_contenteditable.focus();
+        nodeContenteditable.focus();
       });
-      add_class(popup, "hyperlink");
-      popup.appendChild(textbox);
+      addClass(popup, "hyperlink");
+      appendChild(popup, textbox);
       // set focus
       window.setTimeout(function () {
         textbox.focus();
@@ -386,48 +633,7 @@ var wysiwyg = (function () {
     };
 
     // Color-palette popup
-    var create_colorpalette = function (popup, forecolor) {
-      // http://stackoverflow.com/questions/17242144/javascript-convert-hsb-hsv-color-to-rgb-accurately
-      var HSVtoRGB = function (h, s, v) {
-        var r, g, b, i, f, p, q, t;
-        i = Math.floor(h * 6);
-        f = h * 6 - i;
-        p = v * (1 - s);
-        q = v * (1 - f * s);
-        t = v * (1 - (1 - f) * s);
-        switch (i % 6) {
-          case 0:
-            (r = v), (g = t), (b = p);
-            break;
-          case 1:
-            (r = q), (g = v), (b = p);
-            break;
-          case 2:
-            (r = p), (g = v), (b = t);
-            break;
-          case 3:
-            (r = p), (g = q), (b = v);
-            break;
-          case 4:
-            (r = t), (g = p), (b = v);
-            break;
-          case 5:
-            (r = v), (g = p), (b = q);
-            break;
-        }
-        var hr = Math.floor(r * 255).toString(16);
-        var hg = Math.floor(g * 255).toString(16);
-        var hb = Math.floor(b * 255).toString(16);
-        return (
-          "#" +
-          (hr.length < 2 ? "0" : "") +
-          hr +
-          (hg.length < 2 ? "0" : "") +
-          hg +
-          (hb.length < 2 ? "0" : "") +
-          hb
-        );
-      };
+    function createColorpalette(popup, forecolor) {
       // create table
       var table = document.createElement("table");
       table.style.borderCollapse = "collapse";
@@ -444,7 +650,7 @@ var wysiwyg = (function () {
         ) {
           var color;
           if (col == 24) {
-            var gray = Math.floor((255 / 13) * (14 - row)).toString(16);
+            var gray = MathFloor((255 / 13) * (14 - row)).toString(16);
             var hexg = (gray.length < 2 ? "0" : "") + gray;
             color = "#" + hexg + hexg + hexg;
           } else {
@@ -458,167 +664,19 @@ var wysiwyg = (function () {
           td.title = color;
           addEvent(td, "click", function (e) {
             var color = this.title;
-            if (forecolor)
+            if (forecolor) {
               commands.forecolor(color).closePopup().collapseSelection();
-            else commands.highlight(color).closePopup().collapseSelection();
+            } else {
+              commands.highlight(color).closePopup().collapseSelection();
+            }
             cancelEvent(e);
           });
-          tr.appendChild(td);
+          appendChild(tr, td);
         }
-        table.appendChild(tr);
+        appendChild(table, tr);
       }
-      add_class(popup, "palette");
-      popup.appendChild(table);
-    };
-
-    // read file as data-url
-    var filecontents = function (file, callback) {
-      // base64 a 2GB video is insane: artificial clamp at 64MB
-      if (file.size > 0x4000000) {
-        callback();
-        return;
-      }
-
-      // read file as data-url
-      var normalize_dataurl = function (orientation) {
-        var filereader = new FileReader();
-        filereader.onload = function (e) {
-          if (!orientation || orientation == 1 || orientation > 8)
-            return callback(file.type, e.target.result);
-          // normalize
-          var img = new Image();
-          img.src = e.target.result;
-          img.onload = function () {
-            var width = img.width;
-            var height = img.height;
-            if (width > height) {
-              var max_width = 4096;
-              if (width > max_width) {
-                height *= max_width / width;
-                width = max_width;
-              }
-            } else {
-              var max_height = 4096;
-              if (height > max_height) {
-                width *= max_height / height;
-                height = max_height;
-              }
-            }
-            var canvas = document.createElement("canvas");
-            var ctx = canvas.getContext("2d");
-            canvas.width = width;
-            canvas.height = height;
-            ctx.save();
-            if (orientation > 4) {
-              canvas.width = height;
-              canvas.height = width;
-            }
-            switch (orientation) {
-              case 2:
-                ctx.translate(width, 0);
-                ctx.scale(-1, 1);
-                break;
-              case 3:
-                ctx.translate(width, height);
-                ctx.rotate(Math.PI);
-                break;
-              case 4:
-                ctx.translate(0, height);
-                ctx.scale(1, -1);
-                break;
-              case 5:
-                ctx.rotate(0.5 * Math.PI);
-                ctx.scale(1, -1);
-                break;
-              case 6:
-                ctx.rotate(0.5 * Math.PI);
-                ctx.translate(0, -height);
-                break;
-              case 7:
-                ctx.rotate(0.5 * Math.PI);
-                ctx.translate(width, -height);
-                ctx.scale(-1, 1);
-                break;
-              case 8:
-                ctx.rotate(-0.5 * Math.PI);
-                ctx.translate(-width, 0);
-                break;
-            }
-            ctx.drawImage(img, 0, 0, width, height);
-            ctx.restore();
-            var dataURL = canvas.toDataURL("image/jpeg", 0.99);
-            callback(file.type, dataURL);
-          };
-        };
-        filereader.onerror = function (e) {
-          callback();
-        };
-        filereader.readAsDataURL(file);
-      };
-      if (!window.DataView) return normalize_dataurl();
-
-      // get orientation - https://stackoverflow.com/questions/7584794/accessing-jpeg-exif-rotation-data-in-javascript-on-the-client-side
-      var filereader = new FileReader();
-      filereader.onload = function (e) {
-        var contents = e.target.result;
-        var view = new DataView(contents);
-        // Not a JPEG at all?
-        if (view.getUint16(0, false) != 0xffd8) return normalize_dataurl();
-        var length = view.byteLength,
-          offset = 2;
-        while (offset < length) {
-          // Missing EXIF?
-          if (view.getUint16(offset + 2, false) <= 8) return normalize_dataurl();
-          var marker = view.getUint16(offset, false);
-          offset += 2;
-          if (marker == 0xffe1) {
-            if (view.getUint32((offset += 2), false) != 0x45786966)
-              return normalize_dataurl();
-            var little = view.getUint16((offset += 6), false) == 0x4949;
-            offset += view.getUint32(offset + 4, little);
-            var tags = view.getUint16(offset, little);
-            offset += 2;
-            for (var i = 0; i < tags; ++i) {
-              if (view.getUint16(offset + i * 12, little) == 0x0112) {
-                var orientation = view.getUint16(offset + i * 12 + 8, little);
-                return normalize_dataurl(orientation);
-              }
-            }
-          } else if ((marker & 0xff00) != 0xff00) break;
-          else offset += view.getUint16(offset, false);
-        }
-        return normalize_dataurl();
-      };
-      filereader.onerror = function (e) {
-        callback();
-      };
-      filereader.readAsArrayBuffer(file);
-    };
-    function filecontents_multiple(files, callback) {
-      // Keep callback-order - supporting browser without 'Promise'
-      var callbacks = [],
-        callnext = 0;
-      for (
-        var i = 0;
-        i < files.length;
-        ++i // can't use forEach() with 'FileList'
-      ) {
-        (function (i) {
-          filecontents(files[i], function (type, dataurl) {
-            callbacks[i] = function () {
-              if (dataurl)
-                // empty on error
-                callback(type, dataurl);
-            };
-            // trigger callbacks in order
-            while (callnext in callbacks) {
-              callbacks[callnext]();
-              callnext++;
-            }
-            if (callnext == files.length) callbacks = null;
-          });
-        })(i);
-      }
+      addClass(popup, "palette");
+      appendChild(popup, table);
     }
 
     // open popup and apply position
@@ -628,7 +686,7 @@ var wysiwyg = (function () {
       top // left+top relative to container
     ) {
       // Test parents, el.getBoundingClientRect() does not work within 'position:fixed'
-      var node = node_container,
+      var node = nodeContainer,
         popup_parent = node.offsetParent;
       while (node) {
         var node_style = getComputedStyle(node);
@@ -639,26 +697,26 @@ var wysiwyg = (function () {
         node = node.offsetParent;
       }
       // Move popup as high as possible in the DOM tree
-      popup_parent.appendChild(popup);
+      appendChild(popup_parent, popup);
       // Trim to viewport
       var rect = popup_parent.getBoundingClientRect();
       var documentElement = document.documentElement;
-      var viewport_width = Math.min(
+      var viewport_width = MathMin(
         window.innerWidth,
-        Math.max(documentElement.offsetWidth, documentElement.scrollWidth)
+        MathMax(documentElement.offsetWidth, documentElement.scrollWidth)
       );
       var viewport_height = window.innerHeight;
       var popup_width = popup.offsetWidth; // accurate to integer
       var popup_height = popup.offsetHeight;
       if (rect.left + left < 1) left = 1 - rect.left;
       else if (rect.left + left + popup_width > viewport_width - 1)
-        left = Math.max(
+        left = MathMax(
           1 - rect.left,
           viewport_width - 1 - rect.left - popup_width
         );
       if (rect.top + top < 1) top = 1 - rect.top;
       else if (rect.top + top + popup_height > viewport_height - 1)
-        top = Math.max(
+        top = MathMax(
           1 - rect.top,
           viewport_height - 1 - rect.top - popup_height
         );
@@ -672,13 +730,13 @@ var wysiwyg = (function () {
       // popup already open?
       var popup = commands.activePopup();
       if (popup && popup_type === type) {
-        remove_class(popup, "animate-down");
-        remove_class(popup, "animate-up");
+        removeClass(popup, "animate-down");
+        removeClass(popup, "animate-up");
       } else {
         // either run 'commands.closePopup().openPopup()' or remove children
         popup = commands.openPopup();
-        add_class(popup, "wysiwyg-popup");
-        add_class(popup, down ? "animate-down" : "animate-up");
+        addClass(popup, "wysiwyg-popup");
+        addClass(popup, down ? "animate-down" : "animate-up");
         popup_type = type;
       }
       // re-fill content
@@ -694,7 +752,7 @@ var wysiwyg = (function () {
         argument
       );
       // Popup position - point to top/bottom-center of the button
-      var container_offset = node_container.getBoundingClientRect();
+      var container_offset = nodeContainer.getBoundingClientRect();
       var button_offset = button.getBoundingClientRect();
       var left =
         button_offset.left -
@@ -708,8 +766,8 @@ var wysiwyg = (function () {
     };
     var popup_selection_position = function (popup, rect) {
       // Popup position - point to center of the selection
-      var container_offset = node_container.getBoundingClientRect();
-      var contenteditable_offset = node_contenteditable.getBoundingClientRect();
+      var container_offset = nodeContainer.getBoundingClientRect();
+      var contenteditable_offset = nodeContenteditable.getBoundingClientRect();
       var left =
         rect.left +
         parseInt(rect.width / 2) -
@@ -740,7 +798,7 @@ var wysiwyg = (function () {
       buttons.forEach(function (button) {
         // Custom button
         if (button instanceof HTMLElement) {
-          toolbar_container.appendChild(button);
+          appendChild(toolbar_container, button);
           // Simulate ':focus-within'
           addEvent(button, "focus", add_class_focus);
           addEvent(button, "blur", remove_class_focus);
@@ -749,7 +807,7 @@ var wysiwyg = (function () {
 
         // Create a button
         var element = document.createElement("button");
-        add_class(element, "btn");
+        addClass(element, "btn");
         if ("icon" in button) {
           var htmlparser = document.implementation.createHTMLDocument("");
           htmlparser.body.innerHTML = button.icon;
@@ -757,12 +815,14 @@ var wysiwyg = (function () {
             var child = htmlparser.body.firstChild;
             child !== null;
             child = child.nextSibling
-          )
-            element.appendChild(child);
+          ) {
+            appendChild(element, child);
+          }
         }
         if ("attr" in button) {
-          for (var key in button.attr)
-            element.setAttribute(key, button.attr[key]);
+          for (var key in button.attr) {
+            setAttribute(element, key, button.attr[key]);
+          }
         }
         // Simulate ':focus-within'
         addEvent(element, "focus", add_class_focus);
@@ -770,24 +830,24 @@ var wysiwyg = (function () {
 
         // Create handler
         var handler = null;
-        if ("click" in button)
+        if ("click" in button) {
           handler = function () {
             button.click(commands, element);
           };
-        else if ("popup" in button)
+        } else if ("popup" in button) {
           handler = function () {
             var fill_popup = function (popup) {
               button.popup(commands, popup, element);
             };
-            if (selection_rect)
+            if (selection_rect) {
               open_popup_selection(
                 selection_rect,
                 fill_popup.toString(),
                 fill_popup
               );
-            else open_popup_button(element, fill_popup.toString(), fill_popup);
+            } else open_popup_button(element, fill_popup.toString(), fill_popup);
           };
-        else if ("browse" in button || "dataurl" in button)
+        } else if ("browse" in button || "dataurl" in button) {
           handler = function () {
             // remove popup
             commands.closePopup().collapseSelection();
@@ -814,12 +874,12 @@ var wysiwyg = (function () {
               if (remove_input) input.parentNode.removeChild(input);
               cancelEvent(e);
             });
-            node_container.appendChild(input);
+            appendChild(nodeContainer, input);
             var evt = document.createEvent("MouseEvents");
             evt.initEvent("click", true, false);
             input.dispatchEvent(evt);
           };
-        else if ("action" in button)
+        } else if ("action" in button) {
           handler = function () {
             switch (button.action) {
               case "link":
@@ -855,14 +915,14 @@ var wysiwyg = (function () {
                   open_popup_selection(
                     selection_rect,
                     "colortext",
-                    create_colorpalette,
+                    createColorpalette,
                     true
                   );
                 else
                   open_popup_button(
                     element,
                     "colortext",
-                    create_colorpalette,
+                    createColorpalette,
                     true
                   );
                 break;
@@ -871,14 +931,14 @@ var wysiwyg = (function () {
                   open_popup_selection(
                     selection_rect,
                     "colorfill",
-                    create_colorpalette,
+                    createColorpalette,
                     false
                   );
                 else
                   open_popup_button(
                     element,
                     "colorfill",
-                    create_colorpalette,
+                    createColorpalette,
                     false
                   );
                 break;
@@ -899,15 +959,17 @@ var wysiwyg = (function () {
                 break;
             }
           };
+        }
         element.onclick = function (e) {
           if (handler) handler();
           cancelEvent(e);
         };
-        toolbar_container.appendChild(element);
+        appendChild(toolbar_container, element);
 
         // Hotkey
-        if ("hotkey" in button && handler && hotkeys)
+        if ("hotkey" in button && handler && hotkeys) {
           hotkeys[button.hotkey.toLowerCase()] = handler;
+        }
       });
     };
 
@@ -956,17 +1018,18 @@ var wysiwyg = (function () {
         var fill_popup = function (popup) {
           suggestions.forEach(function (suggestion) {
             var element = document.createElement("div");
-            add_class(element, "suggestion");
+            addClass(element, "suggestion");
             element.innerHTML = suggestion.label;
             addEvent(element, "click", function (e) {
               finish_suggestion(suggestion.insert);
               cancelEvent(e);
             });
-            popup.appendChild(element);
+            appendChild(popup, element);
 
             // Store suggestion to handle 'Enter'
-            if (first_suggestion_html === null)
+            if (first_suggestion_html === null) {
               first_suggestion_html = suggestion.insert;
+            }
           });
         };
         open_popup_selection(recent_selection_rect, "suggestion", fill_popup);
@@ -1047,9 +1110,10 @@ var wysiwyg = (function () {
         }
       }
       // Handle suggester
-      if (suggester)
+      if (suggester) {
         return suggester_keydown(
           key);
+      }
     };
     var onKeyPress = function (
       key,
@@ -1060,14 +1124,12 @@ var wysiwyg = (function () {
       metaKey
     ) {
       // Handle suggester
-      if (suggester)
+      if (suggester) {
         return suggester_keypress(
           key,
           character);
+      }
     };
-    //var onKeyUp = function( key, character, shiftKey, altKey, ctrlKey, metaKey )
-    //{
-    //};
     var onSelection = function (collapsed, rect, nodes, rightclick) {
       recent_selection_rect = collapsed ? rect || recent_selection_rect : null;
       recent_selection_link = null;
@@ -1082,8 +1144,8 @@ var wysiwyg = (function () {
         if (typed_suggestion !== null) {
           var popup = commands.activePopup();
           if (popup) {
-            remove_class(popup, "animate-down");
-            remove_class(popup, "animate-up");
+            removeClass(popup, "animate-down");
+            removeClass(popup, "animate-up");
             popup_selection_position(popup, rect);
           }
           return;
@@ -1133,8 +1195,8 @@ var wysiwyg = (function () {
       // fill buttons
       open_popup_selection(rect, "selection", function (popup) {
         var toolbar_element = document.createElement("div");
-        add_class(toolbar_element, "toolbar");
-        popup.appendChild(toolbar_element);
+        addClass(toolbar_element, "toolbar");
+        appendChild(popup, toolbar_element);
         fill_buttons(toolbar_element, rect, selectionbuttons);
       });
     };
@@ -1148,19 +1210,18 @@ var wysiwyg = (function () {
 
     // Sync Editor with Textarea
     var syncTextarea = null,
-      debounced_syncTextarea = null,
-      callUpdates;
+      debounced_syncTextarea = null;
     if (node_textarea) {
       // copy placeholder from the textarea to the contenteditor
-      if (!node_contenteditable.innerHTML && node_textarea.value)
-        node_contenteditable.innerHTML = node_textarea.value;
+      if (!nodeContenteditable.innerHTML && node_textarea.value)
+        nodeContenteditable.innerHTML = node_textarea.value;
 
       // sync html from the contenteditor to the textarea
-      var previous_html = node_contenteditable.innerHTML;
+      var previous_html = nodeContenteditable.innerHTML;
       syncTextarea = function () {
-        var new_html = node_contenteditable.innerHTML;
+        var new_html = nodeContenteditable.innerHTML;
         if (new_html.match(/^<br[/ ]*>$/i)) {
-          node_contenteditable.innerHTML = "";
+          nodeContenteditable.innerHTML = "";
           new_html = "";
         }
         if (new_html == previous_html) return;
@@ -1170,13 +1231,13 @@ var wysiwyg = (function () {
       };
 
       // Focus/Blur events
-      addEvent(node_contenteditable, "focus", function () {
+      addEvent(nodeContenteditable, "focus", function () {
         // forward focus/blur to the textarea
         var event = document.createEvent("Event");
         event.initEvent("focus", false, false);
         node_textarea.dispatchEvent(event);
       });
-      addEvent(node_contenteditable, "blur", function () {
+      addEvent(nodeContenteditable, "blur", function () {
         // sync textarea immediately
         syncTextarea();
         // forward focus/blur to the textarea
@@ -1194,16 +1255,16 @@ var wysiwyg = (function () {
       // http://stackoverflow.com/questions/8694054/onchange-event-with-contenteditable/8694125#8694125
       // https://github.com/mindmup/bootstrap-wysiwyg/pull/50/files
       // http://codebits.glennjones.net/editing/events-contenteditable.htm
-      addEvent(node_contenteditable, "input", debounced_syncTextarea);
-      addEvent(node_contenteditable, "propertychange", debounced_syncTextarea);
-      addEvent(node_contenteditable, "textInput", debounced_syncTextarea);
-      addEvent(node_contenteditable, "paste", debounced_syncTextarea);
-      addEvent(node_contenteditable, "cut", debounced_syncTextarea);
-      addEvent(node_contenteditable, "drop", debounced_syncTextarea);
+      addEvent(nodeContenteditable, "input", debounced_syncTextarea);
+      addEvent(nodeContenteditable, "propertychange", debounced_syncTextarea);
+      addEvent(nodeContenteditable, "textInput", debounced_syncTextarea);
+      addEvent(nodeContenteditable, "paste", debounced_syncTextarea);
+      addEvent(nodeContenteditable, "cut", debounced_syncTextarea);
+      addEvent(nodeContenteditable, "drop", debounced_syncTextarea);
       // MutationObserver should report everything
       if (window.MutationObserver) {
         var observer = new MutationObserver(debounced_syncTextarea);
-        observer.observe(node_contenteditable, {
+        observer.observe(nodeContenteditable, {
           attributes: true,
           childList: true,
           characterData: true,
@@ -1215,10 +1276,10 @@ var wysiwyg = (function () {
       var form = node_textarea.form;
       if (form) {
         addEvent(form, "reset", function () {
-          node_contenteditable.innerHTML = "";
+          nodeContenteditable.innerHTML = "";
           debounced_syncTextarea();
           callUpdates(true);
-          remove_class(node_container, "focused");
+          removeClass(nodeContainer, "focused");
         });
       }
     }
@@ -1231,7 +1292,7 @@ var wysiwyg = (function () {
         // Detect collapsed selection
         var collapsed = getSelectionCollapsed();
         // List of all selected nodes
-        var nodes = getSelectedNodes(node_contenteditable);
+        var nodes = getSelectedNodes(nodeContenteditable);
         // Rectangle of the selection
         var rect =
           clientX === null || clientY === null
@@ -1246,16 +1307,16 @@ var wysiwyg = (function () {
         if (selectionRect) rect = selectionRect;
         if (rect) {
           // So far 'rect' is relative to viewport, make it relative to the editor
-          var boundingrect = node_contenteditable.getBoundingClientRect();
+          var boundingrect = nodeContenteditable.getBoundingClientRect();
           rect.left -= parseInt(boundingrect.left);
           rect.top -= parseInt(boundingrect.top);
           // Trim rectangle to the editor
           if (rect.left < 0) rect.left = 0;
           if (rect.top < 0) rect.top = 0;
-          if (rect.width > node_contenteditable.offsetWidth)
-            rect.width = node_contenteditable.offsetWidth;
-          if (rect.height > node_contenteditable.offsetHeight)
-            rect.height = node_contenteditable.offsetHeight;
+          if (rect.width > nodeContenteditable.offsetWidth)
+            rect.width = nodeContenteditable.offsetWidth;
+          if (rect.height > nodeContenteditable.offsetHeight)
+            rect.height = nodeContenteditable.offsetHeight;
         } else if (nodes.length) {
           // What else could we do? Offset of first element...
           for (var i = 0; i < nodes.length; ++i) {
@@ -1297,10 +1358,13 @@ var wysiwyg = (function () {
 
       // Create popup element
       node_popup = document.createElement("DIV");
-      var parent = node_contenteditable.parentNode,
-        next = node_contenteditable.nextSibling;
-      if (next) parent.insertBefore(node_popup, next);
-      else parent.appendChild(node_popup);
+      var parent = nodeContenteditable.parentNode,
+        next = nodeContenteditable.nextSibling;
+      if (next) {
+        insertBefore(parent, node_popup, next);
+      } else {
+        appendChild(parent, node_popup);
+      }
       if (onOpenpopup) onOpenpopup();
       return node_popup;
     };
@@ -1309,7 +1373,7 @@ var wysiwyg = (function () {
       node_popup.parentNode.removeChild(node_popup);
       node_popup = null;
       removeEvent(window, "mousedown", popupClickClose, true);
-      if (onClosepopup) onClosepopup();
+      onClosepopup && onClosepopup();
     };
 
     // Key events
@@ -1348,11 +1412,13 @@ var wysiwyg = (function () {
       //}
 
       // Keys can change the selection
-      if (popup_saved_selection)
+      if (popup_saved_selection) {
         popup_saved_selection = saveSelection();
+      }
       if (phase == 2 || phase == 3) {
-        if (debounced_handleSelection)
+        if (debounced_handleSelection) {
           debounced_handleSelection(null, null, false);
+        }
       }
       // Most keys can cause text-changes
       if (phase == 2 && debounced_syncTextarea) {
@@ -1374,13 +1440,13 @@ var wysiwyg = (function () {
         }
       }
     };
-    addEvent(node_contenteditable, "keydown", function (e) {
+    addEvent(nodeContenteditable, "keydown", function (e) {
       keyHandler(e, 1);
     });
-    addEvent(node_contenteditable, "keypress", function (e) {
+    addEvent(nodeContenteditable, "keypress", function (e) {
       keyHandler(e, 2);
     });
-    addEvent(node_contenteditable, "keyup", function (e) {
+    addEvent(nodeContenteditable, "keyup", function (e) {
       keyHandler(e, 3);
     });
 
@@ -1410,14 +1476,14 @@ var wysiwyg = (function () {
         debounced_handleSelection(clientX, clientY, rightclick);
     };
     var mouse_down_target = null;
-    addEvent(node_contenteditable, "mousedown", function (e) {
+    addEvent(nodeContenteditable, "mousedown", function (e) {
       // catch event if 'mouseup' outside 'contenteditable'
       removeEvent(window, "mouseup", mouseHandler);
       addEvent(window, "mouseup", mouseHandler);
       // remember target
       mouse_down_target = e.target;
     });
-    addEvent(node_contenteditable, "mouseup", function (e) {
+    addEvent(nodeContenteditable, "mouseup", function (e) {
       // Select image (improve user experience on Webkit)
       var node = e.target;
       if (
@@ -1425,7 +1491,7 @@ var wysiwyg = (function () {
         node.nodeType == Node.ELEMENT_NODE &&
         node === mouse_down_target &&
         isMediaNode(node) &&
-        isOrContainsNode(node_contenteditable, node, true)
+        isOrContainsNode(nodeContenteditable, node, true)
       ) {
         var selection = window.getSelection();
         var range = document.createRange();
@@ -1439,14 +1505,14 @@ var wysiwyg = (function () {
       // Trigger change
       if (debounced_syncTextarea) debounced_syncTextarea();
     });
-    addEvent(node_contenteditable, "dblclick", function (e) {
+    addEvent(nodeContenteditable, "dblclick", function (e) {
       mouseHandler(e);
     });
-    addEvent(node_contenteditable, "selectionchange", function (e) {
+    addEvent(nodeContenteditable, "selectionchange", function (e) {
       mouseHandler(e);
     });
     if (hijackContextmenu) {
-      addEvent(node_contenteditable, "contextmenu", function (e) {
+      addEvent(nodeContenteditable, "contextmenu", function (e) {
         mouseHandler(e, true);
         cancelEvent(e);
       });
@@ -1455,14 +1521,15 @@ var wysiwyg = (function () {
     // exec command
     // https://developer.mozilla.org/en-US/docs/Web/API/document.execCommand
     // http://www.quirksmode.org/dom/execCommand.html
-    var execCommand = function (command, param, force_selection) {
+    function execCommand(command, param, force_selection) {
       // give selection to contenteditable element
-      restoreSelection(node_contenteditable, popup_saved_selection);
+      restoreSelection(nodeContenteditable, popup_saved_selection);
       // tried to avoid forcing focus(), but ... - https://github.com/wysiwygjs/wysiwyg.js/issues/51
-      node_contenteditable.focus();
-      if (!selectionInside(node_contenteditable, force_selection))
+      nodeContenteditable.focus();
+      if (!selectionInside(nodeContenteditable, force_selection)) {
         // returns 'selection inside editor'
         return false;
+      }
 
       // Buggy, call within 'try/catch'
       try {
@@ -1474,10 +1541,10 @@ var wysiwyg = (function () {
         return document.execCommand(command, false, param);
       } catch (e) {}
       return false;
-    };
+    }
 
     // copy/paste images from clipboard
-    function paste_drop_file(datatransfer) {
+    function pasteDropFile(datatransfer) {
       if (!datatransfer) return false;
       var insert_files = [];
       // From clipboard
@@ -1501,24 +1568,25 @@ var wysiwyg = (function () {
       });
       return true;
     }
-    addEvent(node_contenteditable, "paste", function (e) {
-      if (paste_drop_file(e.clipboardData)) cancelEvent(e); // dismiss paste
+    addEvent(nodeContenteditable, "paste", function (e) {
+      if (pasteDropFile(e.clipboardData)) cancelEvent(e); // dismiss paste
     });
-    addEvent(node_contenteditable, "drop", function (e) {
-      if (paste_drop_file(e.dataTransfer)) cancelEvent(e); // dismiss drop
+    addEvent(nodeContenteditable, "drop", function (e) {
+      if (pasteDropFile(e.dataTransfer)) cancelEvent(e); // dismiss drop
     });
 
     // Command structure
-    callUpdates = function (selection_destroyed) {
+    function callUpdates(selection_destroyed) {
       // change-handler
       if (debounced_syncTextarea) debounced_syncTextarea();
       // handle saved selection
       if (selection_destroyed) {
         collapseSelectionEnd();
         popup_saved_selection = null; // selection destroyed
-      } else if (popup_saved_selection)
+      } else if (popup_saved_selection) {
         popup_saved_selection = saveSelection();
-    };
+      }
+    }
     commands = {
       // properties
       sync: function () {
@@ -1527,16 +1595,16 @@ var wysiwyg = (function () {
         return this;
       },
       getHTML: function () {
-        return node_contenteditable.innerHTML;
+        return nodeContenteditable.innerHTML;
       },
       setHTML: function (html) {
-        node_contenteditable.innerHTML = html || "";
+        nodeContenteditable.innerHTML = html || "";
         callUpdates(true); // selection destroyed
         return this;
       },
       getSelectedHTML: function () {
-        restoreSelection(node_contenteditable, popup_saved_selection);
-        if (!selectionInside(node_contenteditable)) return null;
+        restoreSelection(nodeContenteditable, popup_saved_selection);
+        if (!selectionInside(nodeContenteditable)) return null;
         return getSelectionHtml();
       },
       // selection and popup
@@ -1546,9 +1614,9 @@ var wysiwyg = (function () {
         return this;
       },
       expandSelection: function (preceding, following) {
-        restoreSelection(node_contenteditable, popup_saved_selection);
-        if (!selectionInside(node_contenteditable)) return this;
-        expandSelectionCaret(node_contenteditable, preceding, following);
+        restoreSelection(nodeContenteditable, popup_saved_selection);
+        if (!selectionInside(nodeContenteditable)) return this;
+        expandSelectionCaret(nodeContenteditable, preceding, following);
         popup_saved_selection = saveSelection(); // save new selection
         return this;
       },
@@ -1598,9 +1666,10 @@ var wysiwyg = (function () {
       },
       highlight: function (color) {
         // http://stackoverflow.com/questions/2756931/highlight-the-text-of-the-dom-range-element
-        if (!execCommand("hiliteColor", color))
+        if (!execCommand("hiliteColor", color)) {
           // some browsers apply 'backColor' to the whole block
           execCommand("backColor", color);
+        }
         callUpdates();
         return this;
       },
@@ -1637,9 +1706,9 @@ var wysiwyg = (function () {
       insertHTML: function (html) {
         if (!execCommand("insertHTML", html, true)) {
           // IE 11 still does not support 'insertHTML'
-          restoreSelection(node_contenteditable, popup_saved_selection);
-          selectionInside(node_contenteditable, true);
-          pasteHtmlAtCaret(node_contenteditable, html);
+          restoreSelection(nodeContenteditable, popup_saved_selection);
+          selectionInside(nodeContenteditable, true);
+          pasteHtmlAtCaret(nodeContenteditable, html);
         }
         callUpdates(true); // selection destroyed
         return this;
@@ -1659,18 +1728,18 @@ var wysiwyg = (function () {
     // Create toolbar
     if (buttons) {
       var toolbar_element = document.createElement("div");
-      add_class(toolbar_element, "toolbar");
+      addClass(toolbar_element, "toolbar");
       if (toolbar_top) {
-        add_class(toolbar_element, "toolbar-top");
-        node_container.insertBefore(toolbar_element, node_container.firstChild);
+        addClass(toolbar_element, "toolbar-top");
+        insertBefore(nodeContainer, toolbar_element, nodeContainer.firstChild);
       } else if (toolbar_bottom) {
-        add_class(toolbar_element, "toolbar-bottom");
-        node_container.appendChild(toolbar_element);
+        addClass(toolbar_element, "toolbar-bottom");
+        appendChild(nodeContainer, toolbar_element);
       } else {
         var toolbar_wrapper = document.createElement("div");
-        add_class(toolbar_wrapper, "toolbar-auto");
-        node_container.appendChild(toolbar_wrapper);
-        toolbar_wrapper.appendChild(toolbar_element);
+        addClass(toolbar_wrapper, "toolbar-auto");
+        appendChild(nodeContainer, toolbar_wrapper);
+        appendChild(toolbar_wrapper, toolbar_element);
       }
       fill_buttons(toolbar_element, null, buttons, hotkeys);
     }

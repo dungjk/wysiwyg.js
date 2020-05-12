@@ -55,6 +55,7 @@ ready(function() {
                             e.stopPropagation();
                             var smileyhtml = ' <img src="smiley/' + filename + '" width="16" height="16">&nbsp; ';
                             commands.insertHTML( smileyhtml ); // 'commands.insertHTML(...).closePopup()' - to close popup
+                            commands.closePopup().collapseSelection();
                         };
                         popup.style.textAlign = 'center';
                         popup.style.width = '20em';
