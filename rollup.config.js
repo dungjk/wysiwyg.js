@@ -1,11 +1,11 @@
 import { terser } from "rollup-plugin-terser";
-import postCss from "rollup-plugin-postcss";
 import rollupScss from "rollup-plugin-scss";
+import rollupTypescript from "@rollup/plugin-typescript";
 
 export default [
   {
-    input: "./src/wysiwyg.js",
-    plugins: [rollupScss()],
+    input: "./src/index.ts",
+    plugins: [rollupScss(), rollupTypescript()],
     output: {
       file: "./dist/wysiwyg.js",
       format: "iife",
@@ -13,8 +13,8 @@ export default [
     },
   },
   {
-    input: "./src/wysiwyg.js",
-    plugins: [rollupScss(), terser()],
+    input: "./src/index.ts",
+    plugins: [rollupTypescript(), rollupScss(), terser()],
     output: {
       file: "./dist/wysiwyg.min.js",
       format: "iife",

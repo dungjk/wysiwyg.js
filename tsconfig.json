@@ -1,0 +1,19 @@
+{
+  "compilerOptions": {
+    "allowJs": false,
+    "target": "es5",
+    "module": "es2015",
+    "moduleResolution": "node",
+    "allowUnreachableCode": false,
+    "allowUnusedLabels": false,
+    "noUnusedLocals": true,
+    "noUnusedParameters": false,
+    "preserveConstEnums": false,
+    "importHelpers": true,
+    "baseUrl": "./",
+    "esModuleInterop": true,
+    "lib": ["es2015", "es5", "es6", "dom"]
+  },
+  "include": ["./src/**/*.ts"],
+  "exclude": []
+}

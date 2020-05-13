@@ -1,0 +1,12 @@
+{
+  "extends": ["tslint-microsoft-contrib/recommended"],
+  "rules": {
+    "no-relative-imports": false,
+    "typedef": false,
+    "prefer-type-cast": false,
+    "no-inner-html": false,
+    "no-http-string": false,
+    "max-func-body-length": false,
+    "export-name": false
+  }
+}

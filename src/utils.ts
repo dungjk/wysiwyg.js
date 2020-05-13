@@ -1,5 +1,5 @@
 // http://stackoverflow.com/questions/97962/debounce-clicks-when-submitting-a-web-form
-export function debounce(callback, wait, cancelprevious) {
+export function debounce(callback, wait, cancelprevious?: boolean) {
   var timeout;
   return function () {
     if (timeout) {
@@ -8,7 +8,7 @@ export function debounce(callback, wait, cancelprevious) {
     }
     var context = this,
       args = arguments;
-    timeout = setTimeout(function () {
+    timeout = setTimeout(() => {
       timeout = null;
       callback.apply(context, args);
     }, wait);
@@ -27,4 +27,16 @@ export function restoreSelection(containerNode, savedSel) {
   var sel = window.getSelection();
   sel.removeAllRanges();
   sel.addRange(savedSel);
+}
+
+export function htmlEncode(text) {
+  return text.replace(/[&<>"]/g, (tag) => {
+    var charsToReplace = {
+      "&": "&amp;",
+      "<": "&lt;",
+      ">": "&gt;",
+      '"': "&quot;",
+    };
+    return charsToReplace[tag] || tag;
+  });
 }

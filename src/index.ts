@@ -1,5 +1,5 @@
 import "./wysiwyg.scss";
-import { debounce, saveSelection, restoreSelection } from "./utils";
+import { debounce, saveSelection, restoreSelection, htmlEncode } from "./utils";
 import {
   addEvent,
   removeEvent,
@@ -19,44 +19,52 @@ import { filecontents_multiple } from "./file-content";
 
 // http://stackoverflow.com/questions/12603397/calculate-width-height-of-the-selected-text-javascript
 // http://stackoverflow.com/questions/6846230/coordinates-of-selected-text-in-browser-page
-var getSelectionRect = function () {
+var getSelectionRect = () => {
   var sel = window.getSelection();
   if (!sel.rangeCount) return false;
   var range = sel.getRangeAt(0).cloneRange();
-  var rect = range.getBoundingClientRect();
+  var boundingRect = range.getBoundingClientRect();
   // Safari 5.1 returns null, IE9 returns 0/0/0/0 if image selected
-  if (rect && rect.left && rect.top && rect.right && rect.bottom)
+  if (
+    boundingRect &&
+    boundingRect.left &&
+    boundingRect.top &&
+    boundingRect.right &&
+    boundingRect.bottom
+  )
     return {
       // Modern browsers return floating-point numbers
-      left: parseInt(rect.left),
-      top: parseInt(rect.top),
-      width: parseInt(rect.right - rect.left),
-      height: parseInt(rect.bottom - rect.top),
+      left: boundingRect.left,
+      top: boundingRect.top,
+      width: boundingRect.right - boundingRect.left,
+      height: boundingRect.bottom - boundingRect.top,
     };
   // on Webkit 'range.getBoundingClientRect()' sometimes return 0/0/0/0 - but 'range.getClientRects()' works
-  var rects = range.getClientRects ? range.getClientRects() : [];
+  var rects: DOMRectList = range.getClientRects
+    ? range.getClientRects()
+    : (([] as any) as DOMRectList);
   for (var i = 0; i < rects.length; ++i) {
     var rect = rects[i];
     if (rect.left && rect.top && rect.right && rect.bottom)
       return {
         // Modern browsers return floating-point numbers
-        left: parseInt(rect.left),
-        top: parseInt(rect.top),
-        width: parseInt(rect.right - rect.left),
-        height: parseInt(rect.bottom - rect.top),
+        left: rect.left,
+        top: rect.top,
+        width: rect.right - rect.left,
+        height: rect.bottom - rect.top,
       };
   }
   return false;
 };
 
-var getSelectionCollapsed = function (containerNode) {
+var getSelectionCollapsed = (containerNode) => {
   var sel = window.getSelection();
   if (sel.isCollapsed) return true;
   return false;
 };
 
 // http://stackoverflow.com/questions/7781963/js-get-array-of-all-selected-nodes-in-contenteditable-div
-var getSelectedNodes = function (containerNode) {
+var getSelectedNodes = (containerNode) => {
   var sel = window.getSelection();
   if (!sel.rangeCount) return [];
   var nodes = [];
@@ -90,7 +98,7 @@ var getSelectedNodes = function (containerNode) {
         if (node_inside_selection) nodes.push(node);
       }
       // http://stackoverflow.com/questions/667951/how-to-get-nodes-lying-inside-a-range-with-javascript
-      var nextNode = function (node, container) {
+      var nextNode = (node, container) => {
         if (node.firstChild) return node.firstChild;
         while (node) {
           if (node == container)
@@ -115,7 +123,7 @@ var getSelectedNodes = function (containerNode) {
 };
 
 // http://stackoverflow.com/questions/8513368/collapse-selection-to-start-of-selection-not-div
-var collapseSelectionEnd = function () {
+var collapseSelectionEnd = () => {
   var sel = window.getSelection();
   if (!sel.isCollapsed) {
     // Form-submits via Enter throw 'NS_ERROR_FAILURE' on Firefox 34
@@ -127,8 +135,8 @@ var collapseSelectionEnd = function () {
 
 // http://stackoverflow.com/questions/15157435/get-last-character-before-caret-position-in-javascript
 // http://stackoverflow.com/questions/11247737/how-can-i-get-the-word-that-the-caret-is-upon-inside-a-contenteditable-div
-var expandSelectionCaret = function (containerNode, preceding, following) {
-  var sel = window.getSelection();
+var expandSelectionCaret = (containerNode, preceding, following) => {
+  var sel = window.getSelection() as any;
   if (sel.modify) {
     for (var i = 0; i < preceding; ++i)
       sel.modify("extend", "backward", "character");
@@ -145,7 +153,7 @@ var expandSelectionCaret = function (containerNode, preceding, following) {
 };
 
 // http://stackoverflow.com/questions/4652734/return-html-from-a-user-selected-text/4652824#4652824
-var getSelectionHtml = function (containerNode) {
+var getSelectionHtml = (containerNode) => {
   if (getSelectionCollapsed(containerNode)) return null;
   var sel = window.getSelection();
   if (sel.rangeCount) {
@@ -160,14 +168,15 @@ var getSelectionHtml = function (containerNode) {
   return null;
 };
 
-var selectionInside = function (containerNode, force) {
+var selectionInside = (containerNode, force?: boolean) => {
   // selection inside editor?
   var sel = window.getSelection();
   if (
     isOrContainsNode(containerNode, sel.anchorNode) &&
     isOrContainsNode(containerNode, sel.focusNode)
-  )
+  ) {
     return true;
+  }
   // selection at least partly outside editor
   if (!force) return false;
   // force selection to editor
@@ -182,7 +191,7 @@ var selectionInside = function (containerNode, force) {
 // http://stackoverflow.com/questions/6690752/insert-html-at-caret-in-a-contenteditable-div/6691294#6691294
 // http://stackoverflow.com/questions/4823691/insert-an-html-element-in-a-contenteditable-element
 // http://stackoverflow.com/questions/6139107/programatically-select-text-in-a-contenteditable-html-element
-var pasteHtmlAtCaret = function (containerNode, html) {
+var pasteHtmlAtCaret = (containerNode, html) => {
   var sel = window.getSelection();
   if (sel.getRangeAt && sel.rangeCount) {
     var range = sel.getRangeAt(0);
@@ -191,9 +200,9 @@ var pasteHtmlAtCaret = function (containerNode, html) {
     // some browsers (IE9, for one)
     var el = document.createElement("div");
     el.innerHTML = html;
-    var frag = document.createDocumentFragment(),
-      node,
-      lastNode;
+    var frag = document.createDocumentFragment();
+    var node: ChildNode;
+    var lastNode: Node;
     while ((node = el.firstChild)) {
       lastNode = appendChild(frag, node);
     }
@@ -215,15 +224,15 @@ var pasteHtmlAtCaret = function (containerNode, html) {
 };
 
 // Create editor
-const wysiwyg = function (element, options) {
+const wysiwyg = (element, options) => {
   var toolbar = options.toolbar;
   var buttons = options.buttons;
   var selectionbuttons = options.selectionbuttons;
   var suggester = options.suggester;
   var interceptenter = options.interceptenter;
   var hijackContextmenu = !!options.hijackmenu;
-  var editorWidth = options.width || 400;
-  var editorHeight = options.height || 400;
+  var editorWidth = options.width || -1;
+  var editorHeight = options.height || -1;
 
   var nodeContainer =
     typeof element == "string" ? document.querySelector(element) : element;
@@ -249,21 +258,23 @@ const wysiwyg = function (element, options) {
     insertBefore(nodeContainer, nodeContenteditable, nodeContainer.firstChild);
   }
 
-  setStyle(nodeContainer, "width", `${editorWidth}px`);
-  setStyle(nodeContenteditable, "height", `${editorHeight}px`);
+  editorWidth > 0 && setStyle(nodeContainer, "width", editorWidth + "px");
+  editorHeight > 0 &&
+    setStyle(nodeContenteditable, "height", editorHeight + "px");
 
   // Simulate ':focus-within'
   var remove_focus_timeout = null;
-  var add_class_focus = function () {
+  var add_class_focus = () => {
     if (remove_focus_timeout) clearTimeout(remove_focus_timeout);
     remove_focus_timeout = null;
     addClass(nodeContainer, "focus");
     if (toolbar_demand) addClass(nodeContainer, "focused");
   };
-  var remove_class_focus = function () {
-    if (remove_focus_timeout || document.activeElement == nodeContenteditable)
+  var remove_class_focus = () => {
+    if (remove_focus_timeout || document.activeElement == nodeContenteditable) {
       return;
-    remove_focus_timeout = setTimeout(function () {
+    }
+    remove_focus_timeout = setTimeout(() => {
       remove_focus_timeout = null;
       removeClass(nodeContainer, "focus");
     }, 50);
@@ -276,43 +287,35 @@ const wysiwyg = function (element, options) {
   }
 
   // Insert-link popup
-  var create_insertlink = function (popup, modify_a_href) {
+  var create_insertlink = (popup, modify_a_href) => {
     var textbox = document.createElement("input");
     textbox.placeholder = "www.example.com";
     if (modify_a_href) textbox.value = modify_a_href.href;
     textbox.autofocus = true;
-    if (modify_a_href)
-      addEvent(textbox, "input", function (e) {
+    if (modify_a_href) {
+      addEvent(textbox, "input", (e) => {
         var url = textbox.value.trim();
         if (url) modify_a_href.href = url;
       });
-    addEvent(textbox, "keypress", function (e) {
+    }
+    addEvent(textbox, "keypress", (e) => {
       var key = e.which || e.keyCode;
       if (key != 13) return;
       var url = textbox.value.trim();
-      if (modify_a_href);
-      else if (url) {
+      if (modify_a_href) {
+      } else if (url) {
         var url_scheme = url;
-        if (!/^[a-z0-9]+:\/\//.test(url)) url_scheme = "http://" + url;
-        if (commands.getSelectedHTML()) commands.insertLink(url_scheme);
-        else {
-          // Encode html entities - http://stackoverflow.com/questions/5499078/fastest-method-to-escape-html-tags-as-html-entities
-          var htmlencode = function (text) {
-            return text.replace(/[&<>"]/g, function (tag) {
-              var charsToReplace = {
-                "&": "&amp;",
-                "<": "&lt;",
-                ">": "&gt;",
-                '"': "&quot;",
-              };
-              return charsToReplace[tag] || tag;
-            });
-          };
+        if (!/^[a-z0-9]+:\/\//.test(url)) {
+          url_scheme = "http://" + url;
+        }
+        if (commands.getSelectedHTML()) {
+          commands.insertLink(url_scheme);
+        } else {
           commands.insertHTML(
             '<a href="' +
-              htmlencode(url_scheme) +
+              htmlEncode(url_scheme) +
               '">' +
-              htmlencode(url) +
+              htmlEncode(url) +
               "</a>"
           );
         }
@@ -323,7 +326,7 @@ const wysiwyg = function (element, options) {
     addClass(popup, "hyperlink");
     appendChild(popup, textbox);
     // set focus
-    window.setTimeout(function () {
+    window.setTimeout(() => {
       textbox.focus();
       add_class_focus();
     }, 1);
@@ -377,11 +380,12 @@ const wysiwyg = function (element, options) {
   }
 
   // open popup and apply position
-  var popup_position = function (
+  var popup_position = (
     popup,
     left,
-    top // left+top relative to container
-  ) {
+    // left+top relative to container
+    top
+  ) => {
     // Test parents, el.getBoundingClientRect() does not work within 'position:fixed'
     var node = nodeContainer,
       popup_parent = node.offsetParent;
@@ -411,19 +415,21 @@ const wysiwyg = function (element, options) {
         1 - rect.left,
         viewport_width - 1 - rect.left - popup_width
       );
-    if (rect.top + top < 1) top = 1 - rect.top;
-    else if (rect.top + top + popup_height > viewport_height - 1)
+    if (rect.top + top < 1) {
+      top = 1 - rect.top;
+    } else if (rect.top + top + popup_height > viewport_height - 1) {
       top = MathMax(
         1 - rect.top,
         viewport_height - 1 - rect.top - popup_height
       );
+    }
     // Set offset
     popup.style.left = parseInt(left) + "px";
     popup.style.top = parseInt(top) + "px";
   };
   // open popup and apply position
   var popup_type = null;
-  var create_popup = function (down, type, create_content, argument) {
+  var create_popup = (down, type, create_content, argument) => {
     // popup already open?
     var popup = commands.activePopup();
     if (popup && popup_type === type) {
@@ -441,7 +447,7 @@ const wysiwyg = function (element, options) {
     create_content(popup, argument);
     return popup;
   };
-  var open_popup_button = function (button, type, create_content, argument) {
+  var open_popup_button = (button, type, create_content, argument?) => {
     var popup = create_popup(
       toolbar_top ? true : false,
       type,
@@ -454,21 +460,21 @@ const wysiwyg = function (element, options) {
     var left =
       button_offset.left -
       container_offset.left +
-      parseInt(button.offsetWidth / 2) -
-      parseInt(popup.offsetWidth / 2);
+      button.offsetWidth / 2 -
+      popup.offsetWidth / 2;
     var top = button_offset.top - container_offset.top;
     if (toolbar_top) top += button.offsetHeight;
     else top -= popup.offsetHeight;
     popup_position(popup, left, top);
   };
-  var popup_selection_position = function (popup, rect) {
+  var popup_selection_position = (popup, rect) => {
     // Popup position - point to center of the selection
     var container_offset = nodeContainer.getBoundingClientRect();
     var contenteditable_offset = nodeContenteditable.getBoundingClientRect();
     var left =
       rect.left +
-      parseInt(rect.width / 2) -
-      parseInt(popup.offsetWidth / 2) +
+      rect.width / 2 -
+      popup.offsetWidth / 2 +
       contenteditable_offset.left -
       container_offset.left;
     var top =
@@ -478,7 +484,7 @@ const wysiwyg = function (element, options) {
       container_offset.top;
     popup_position(popup, left, top);
   };
-  var open_popup_selection = function (rect, type, create_content, argument) {
+  var open_popup_selection = (rect, type, create_content, argument?) => {
     var popup = create_popup(true, type, create_content, argument);
     popup_selection_position(popup, rect);
   };
@@ -486,13 +492,8 @@ const wysiwyg = function (element, options) {
   // Fill buttons (on toolbar or on selection)
   var recent_selection_rect = null,
     recent_selection_link = null;
-  var fill_buttons = function (
-    toolbar_container,
-    selection_rect,
-    buttons,
-    hotkeys
-  ) {
-    buttons.forEach(function (button) {
+  var fill_buttons = (toolbar_container, selection_rect, buttons, hotkeys?) => {
+    buttons.forEach((button) => {
       // Custom button
       if (button instanceof HTMLElement) {
         appendChild(toolbar_container, button);
@@ -517,9 +518,9 @@ const wysiwyg = function (element, options) {
         }
       }
       if ("attr" in button) {
-        for (var key in button.attr) {
-          setAttribute(element, key, button.attr[key]);
-        }
+        Object.keys(button.attr).forEach((k) => {
+          setAttribute(element, k, button.attr[k]);
+        });
       }
       // Simulate ':focus-within'
       addEvent(element, "focus", add_class_focus);
@@ -528,12 +529,12 @@ const wysiwyg = function (element, options) {
       // Create handler
       var handler = null;
       if ("click" in button) {
-        handler = function () {
+        handler = () => {
           button.click(commands, element);
         };
       } else if ("popup" in button) {
-        handler = function () {
-          var fill_popup = function (popup) {
+        handler = () => {
+          var fill_popup = (popup) => {
             button.popup(commands, popup, element);
           };
           if (selection_rect) {
@@ -545,7 +546,7 @@ const wysiwyg = function (element, options) {
           } else open_popup_button(element, fill_popup.toString(), fill_popup);
         };
       } else if ("browse" in button || "dataurl" in button) {
-        handler = function () {
+        handler = () => {
           // remove popup
           commands.closePopup().collapseSelection();
           // open browse dialog
@@ -553,21 +554,25 @@ const wysiwyg = function (element, options) {
           input.type = "file";
           input.multiple = true;
           input.style.display = "none";
-          addEvent(input, "change", function (e) {
+          addEvent(input, "change", (e) => {
             var remove_input = "dataurl" in button;
             if (!e.target.files) remove_input = true;
             else if ("browse" in button) {
-              var files = evt.target.files;
+              var files = (evt.target as any).files;
               for (
                 var i = 0;
                 i < files.length;
                 ++i // can't use forEach() with 'FileList'
               )
                 button.browse(commands, input, files[i], element);
-            } else
-              filecontents_multiple(evt.target.files, function (type, dataurl) {
-                button.dataurl(commands, type, dataurl, element);
-              });
+            } else {
+              filecontents_multiple(
+                (evt.target as any).files,
+                (type, dataurl) => {
+                  button.dataurl(commands, type, dataurl, element);
+                }
+              );
+            }
             if (remove_input) input.parentNode.removeChild(input);
             cancelEvent(e);
           });
@@ -577,7 +582,7 @@ const wysiwyg = function (element, options) {
           input.dispatchEvent(evt);
         };
       } else if ("action" in button) {
-        handler = function () {
+        handler = () => {
           switch (button.action) {
             case "link":
               if (selection_rect)
@@ -657,7 +662,7 @@ const wysiwyg = function (element, options) {
           }
         };
       }
-      element.onclick = function (e) {
+      element.onclick = (e) => {
         if (handler) handler();
         cancelEvent(e);
       };
@@ -674,35 +679,36 @@ const wysiwyg = function (element, options) {
   var typed_suggestion = null,
     suggestion_sequence = 1,
     first_suggestion_html = null;
-  var finish_suggestion = function (insert_html) {
+  var finish_suggestion = (insert_html?) => {
     // fire suggestion
-    if (insert_html)
+    if (insert_html) {
       commands
         .expandSelection(typed_suggestion.length, 0)
         .insertHTML(insert_html);
+    }
     typed_suggestion = null;
     first_suggestion_html = null;
     suggestion_sequence += 1;
     commands.closePopup();
   };
-  var suggester_keydown = function (
+  var suggester_keydown = (
     key,
     character,
     shiftKey,
     altKey,
     ctrlKey,
     metaKey
-  ) {
+  ) => {
     if (key == 13 && first_suggestion_html) {
       finish_suggestion(first_suggestion_html);
       return false; // swallow enter
     }
     return true;
   };
-  var ask_suggestions = function () {
+  var ask_suggestions = () => {
     if (!typed_suggestion) return;
     var current_sequence = suggestion_sequence;
-    var open_suggester = function (suggestions) {
+    var open_suggester = (suggestions) => {
       if (!recent_selection_rect || current_sequence != suggestion_sequence)
         return;
       first_suggestion_html = null;
@@ -712,12 +718,12 @@ const wysiwyg = function (element, options) {
         return;
       }
       // Show suggester
-      var fill_popup = function (popup) {
-        suggestions.forEach(function (suggestion) {
+      var fill_popup = (popup) => {
+        suggestions.forEach((suggestion) => {
           var element = document.createElement("div");
           addClass(element, "suggestion");
           element.innerHTML = suggestion.label;
-          addEvent(element, "click", function (e) {
+          addEvent(element, "click", (e) => {
             finish_suggestion(suggestion.insert);
             cancelEvent(e);
           });
@@ -735,14 +741,14 @@ const wysiwyg = function (element, options) {
     if (!suggester(typed_suggestion, open_suggester)) finish_suggestion();
   };
   var debounced_suggestions = debounce(ask_suggestions, 100, true);
-  var suggester_keypress = function (
+  var suggester_keypress = (
     key,
     character,
     shiftKey,
     altKey,
     ctrlKey,
     metaKey
-  ) {
+  ) => {
     // Special keys
     switch (key) {
       case 8: // backspace
@@ -775,14 +781,7 @@ const wysiwyg = function (element, options) {
   };
 
   // Create contenteditable
-  var onKeyDown = function (
-    key,
-    character,
-    shiftKey,
-    altKey,
-    ctrlKey,
-    metaKey
-  ) {
+  var onKeyDown = (key, character, shiftKey, altKey, ctrlKey, metaKey) => {
     // submit form on enter-key
     if (
       interceptenter &&
@@ -818,14 +817,7 @@ const wysiwyg = function (element, options) {
       );
     }
   };
-  var onKeyPress = function (
-    key,
-    character,
-    shiftKey,
-    altKey,
-    ctrlKey,
-    metaKey
-  ) {
+  var onKeyPress = (key, character, shiftKey, altKey, ctrlKey, metaKey) => {
     // Handle suggester
     if (suggester) {
       return suggester_keypress(
@@ -838,6 +830,7 @@ const wysiwyg = function (element, options) {
       );
     }
   };
+  // tslint:disable-next-line: no-function-expression
   var onSelection = function (collapsed, rect, nodes, rightclick) {
     recent_selection_rect = collapsed ? rect || recent_selection_rect : null;
     recent_selection_link = null;
@@ -885,15 +878,15 @@ const wysiwyg = function (element, options) {
     // Show selection popup?
     var show_popup = true;
     // 'right-click' always opens the popup
-    if (rightclick);
-    else if (!selectionbuttons)
+    if (rightclick) {
+    } else if (!selectionbuttons)
       // No selection-popup wanted?
       show_popup = false;
     // Selected popup wanted, but nothing selected (=selection collapsed)
     else if (collapsed) show_popup = false;
     // Image selected -> skip toolbar-popup (better would be an 'image-popup')
     else
-      nodes.forEach(function (node) {
+      nodes.forEach((node) => {
         if (isMediaNode(node)) show_popup = false;
       });
     if (!show_popup) {
@@ -901,17 +894,17 @@ const wysiwyg = function (element, options) {
       return;
     }
     // fill buttons
-    open_popup_selection(rect, "selection", function (popup) {
+    open_popup_selection(rect, "selection", (popup) => {
       var toolbar_element = document.createElement("div");
       addClass(toolbar_element, "toolbar");
       appendChild(popup, toolbar_element);
       fill_buttons(toolbar_element, rect, selectionbuttons);
     });
   };
-  var onOpenpopup = function () {
+  var onOpenpopup = () => {
     add_class_focus();
   };
-  var onClosepopup = function () {
+  var onClosepopup = () => {
     finish_suggestion();
     remove_class_focus();
   };
@@ -926,7 +919,7 @@ const wysiwyg = function (element, options) {
 
     // sync html from the contenteditor to the textarea
     var previous_html = nodeContenteditable.innerHTML;
-    syncTextarea = function () {
+    syncTextarea = () => {
       var new_html = nodeContenteditable.innerHTML;
       if (new_html.match(/^<br[/ ]*>$/i)) {
         nodeContenteditable.innerHTML = "";
@@ -939,13 +932,13 @@ const wysiwyg = function (element, options) {
     };
 
     // Focus/Blur events
-    addEvent(nodeContenteditable, "focus", function () {
+    addEvent(nodeContenteditable, "focus", () => {
       // forward focus/blur to the textarea
       var event = document.createEvent("Event");
       event.initEvent("focus", false, false);
       node_textarea.dispatchEvent(event);
     });
-    addEvent(nodeContenteditable, "blur", function () {
+    addEvent(nodeContenteditable, "blur", () => {
       // sync textarea immediately
       syncTextarea();
       // forward focus/blur to the textarea
@@ -983,7 +976,7 @@ const wysiwyg = function (element, options) {
     // handle reset event
     var form = node_textarea.form;
     if (form) {
-      addEvent(form, "reset", function () {
+      addEvent(form, "reset", () => {
         nodeContenteditable.innerHTML = "";
         debounced_syncTextarea();
         callUpdates(true);
@@ -996,7 +989,7 @@ const wysiwyg = function (element, options) {
   var popup_saved_selection = null, // preserve selection during popup
     debounced_handleSelection = null;
   if (onSelection) {
-    var handleSelection = function (clientX, clientY, rightclick) {
+    var handleSelection = (clientX, clientY, rightclick) => {
       // Detect collapsed selection
       var collapsed = getSelectionCollapsed(nodeContenteditable);
       // List of all selected nodes
@@ -1047,7 +1040,7 @@ const wysiwyg = function (element, options) {
 
   // Open popup
   var node_popup = null;
-  var popupClickClose = function (e) {
+  var popupClickClose = (e) => {
     var target = e.target || e.srcElement;
     if (target.nodeType == Node.TEXT_NODE)
       // defeat Safari bug
@@ -1057,7 +1050,7 @@ const wysiwyg = function (element, options) {
     // close popup
     popupClose();
   };
-  var popupOpen = function () {
+  var popupOpen = () => {
     // Already open?
     if (node_popup) return node_popup;
 
@@ -1076,7 +1069,7 @@ const wysiwyg = function (element, options) {
     if (onOpenpopup) onOpenpopup();
     return node_popup;
   };
-  var popupClose = function () {
+  var popupClose = () => {
     if (!node_popup) return;
     node_popup.parentNode.removeChild(node_popup);
     node_popup = null;
@@ -1086,7 +1079,7 @@ const wysiwyg = function (element, options) {
 
   // Key events
   // http://sandbox.thewikies.com/html5-experiments/key-events.html
-  var keyHandler = function (e, phase) {
+  var keyHandler = (e, phase) => {
     // https://developer.mozilla.org/en-US/docs/Web/API/KeyboardEvent
     // http://stackoverflow.com/questions/1444477/keycode-and-charcode
     // http://stackoverflow.com/questions/4285627/javascript-keycode-vs-charcode-utter-confusion
@@ -1148,18 +1141,18 @@ const wysiwyg = function (element, options) {
       }
     }
   };
-  addEvent(nodeContenteditable, "keydown", function (e) {
+  addEvent(nodeContenteditable, "keydown", (e) => {
     keyHandler(e, 1);
   });
-  addEvent(nodeContenteditable, "keypress", function (e) {
+  addEvent(nodeContenteditable, "keypress", (e) => {
     keyHandler(e, 2);
   });
-  addEvent(nodeContenteditable, "keyup", function (e) {
+  addEvent(nodeContenteditable, "keyup", (e) => {
     keyHandler(e, 3);
   });
 
   // Mouse events
-  var mouseHandler = function (e, rightclick) {
+  var mouseHandler = (e, rightclick?: boolean) => {
     // mouse position
     var clientX = null,
       clientY = null;
@@ -1184,14 +1177,14 @@ const wysiwyg = function (element, options) {
       debounced_handleSelection(clientX, clientY, rightclick);
   };
   var mouse_down_target = null;
-  addEvent(nodeContenteditable, "mousedown", function (e) {
+  addEvent(nodeContenteditable, "mousedown", (e) => {
     // catch event if 'mouseup' outside 'contenteditable'
     removeEvent(window, "mouseup", mouseHandler);
     addEvent(window, "mouseup", mouseHandler);
     // remember target
     mouse_down_target = e.target;
   });
-  addEvent(nodeContenteditable, "mouseup", function (e) {
+  addEvent(nodeContenteditable, "mouseup", (e) => {
     // Select image (improve user experience on Webkit)
     var node = e.target;
     if (
@@ -1213,14 +1206,14 @@ const wysiwyg = function (element, options) {
     // Trigger change
     if (debounced_syncTextarea) debounced_syncTextarea();
   });
-  addEvent(nodeContenteditable, "dblclick", function (e) {
+  addEvent(nodeContenteditable, "dblclick", (e) => {
     mouseHandler(e);
   });
-  addEvent(nodeContenteditable, "selectionchange", function (e) {
+  addEvent(nodeContenteditable, "selectionchange", (e) => {
     mouseHandler(e);
   });
   if (hijackContextmenu) {
-    addEvent(nodeContenteditable, "contextmenu", function (e) {
+    addEvent(nodeContenteditable, "contextmenu", (e) => {
       mouseHandler(e, true);
       cancelEvent(e);
     });
@@ -1229,7 +1222,7 @@ const wysiwyg = function (element, options) {
   // exec command
   // https://developer.mozilla.org/en-US/docs/Web/API/document.execCommand
   // http://www.quirksmode.org/dom/execCommand.html
-  function execCommand(command, param, force_selection) {
+  function execCommand(command, param?, force_selection?: boolean) {
     // give selection to contenteditable element
     restoreSelection(nodeContenteditable, popup_saved_selection);
     // tried to avoid forcing focus(), but ... - https://github.com/wysiwygjs/wysiwyg.js/issues/51
@@ -1271,20 +1264,20 @@ const wysiwyg = function (element, options) {
       for (var i = 0; i < files.length; ++i) insert_files.push(files[i]);
     }
     if (!insert_files.length) return false;
-    filecontents_multiple(insert_files, function (type, dataurl) {
+    filecontents_multiple(insert_files, (type, dataurl) => {
       execCommand("insertImage", dataurl);
     });
     return true;
   }
-  addEvent(nodeContenteditable, "paste", function (e) {
+  addEvent(nodeContenteditable, "paste", (e) => {
     if (pasteDropFile(e.clipboardData)) cancelEvent(e); // dismiss paste
   });
-  addEvent(nodeContenteditable, "drop", function (e) {
+  addEvent(nodeContenteditable, "drop", (e) => {
     if (pasteDropFile(e.dataTransfer)) cancelEvent(e); // dismiss drop
   });
 
   // Command structure
-  function callUpdates(selection_destroyed) {
+  function callUpdates(selection_destroyed?: boolean) {
     // change-handler
     if (debounced_syncTextarea) debounced_syncTextarea();
     // handle saved selection
@@ -1302,7 +1295,7 @@ const wysiwyg = function (element, options) {
       if (syncTextarea) syncTextarea();
       return this;
     },
-    getHTML: function () {
+    getHTML: () => {
       return nodeContenteditable.innerHTML;
     },
     setHTML: function (html) {
@@ -1310,7 +1303,7 @@ const wysiwyg = function (element, options) {
       callUpdates(true); // selection destroyed
       return this;
     },
-    getSelectedHTML: function () {
+    getSelectedHTML: () => {
       restoreSelection(nodeContenteditable, popup_saved_selection);
       if (!selectionInside(nodeContenteditable)) return null;
       return getSelectionHtml(nodeContenteditable);
@@ -1328,12 +1321,12 @@ const wysiwyg = function (element, options) {
       popup_saved_selection = saveSelection(nodeContenteditable); // save new selection
       return this;
     },
-    openPopup: function () {
+    openPopup: () => {
       if (!popup_saved_selection)
         popup_saved_selection = saveSelection(nodeContenteditable); // save current selection
       return popupOpen();
     },
-    activePopup: function () {
+    activePopup: () => {
       return node_popup;
     },
     closePopup: function () {

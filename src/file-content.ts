@@ -13,15 +13,15 @@ export function filecontents(file, callback) {
   }
 
   // read file as data-url
-  var normalize_dataurl = function (orientation) {
+  var normalize_dataurl = (orientation?: number) => {
     var filereader = new FileReader();
-    filereader.onload = function (e) {
+    filereader.onload = (e) => {
       if (!orientation || orientation == 1 || orientation > 8)
         return callback(file.type, e.target.result);
       // normalize
       var img = new Image();
-      img.src = e.target.result;
-      img.onload = function () {
+      img.src = e.target.result as any;
+      img.onload = () => {
         var width = img.width;
         var height = img.height;
         if (width > height) {
@@ -83,7 +83,7 @@ export function filecontents(file, callback) {
         callback(file.type, dataURL);
       };
     };
-    filereader.onerror = function (e) {
+    filereader.onerror = (e) => {
       callback();
     };
     filereader.readAsDataURL(file);
@@ -92,9 +92,9 @@ export function filecontents(file, callback) {
 
   // get orientation - https://stackoverflow.com/questions/7584794/accessing-jpeg-exif-rotation-data-in-javascript-on-the-client-side
   var filereader = new FileReader();
-  filereader.onload = function (e) {
+  filereader.onload = (e) => {
     var contents = e.target.result;
-    var view = new DataView(contents);
+    var view = new DataView(contents as any);
     // Not a JPEG at all?
     if (view.getUint16(0, false) != 0xffd8) return normalize_dataurl();
     var length = view.byteLength,
@@ -122,7 +122,7 @@ export function filecontents(file, callback) {
     }
     return normalize_dataurl();
   };
-  filereader.onerror = function (e) {
+  filereader.onerror = (e) => {
     callback();
   };
   filereader.readAsArrayBuffer(file);
@@ -137,9 +137,9 @@ export function filecontents_multiple(files, callback) {
     i < files.length;
     ++i // can't use forEach() with 'FileList'
   ) {
-    (function (i) {
-      filecontents(files[i], function (type, dataurl) {
-        callbacks[i] = function () {
+    ((i) => {
+      filecontents(files[i], (type, dataurl) => {
+        callbacks[i] = () => {
           if (dataurl) {
             // empty on error
             callback(type, dataurl);

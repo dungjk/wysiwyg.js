@@ -1,8 +1,8 @@
 // http://stackoverflow.com/questions/12949590/how-to-detach-event-in-ie-6-7-8-9-using-javascript
-export function addEvent(element, type, handler, useCapture) {
+export function addEvent(element, type, handler, useCapture?: boolean) {
   element.addEventListener(type, handler, useCapture ? true : false);
 }
-export function removeEvent(element, type, handler, useCapture) {
+export function removeEvent(element, type, handler, useCapture?: boolean) {
   element.removeEventListener(type, handler, useCapture ? true : false);
 }
 // prevent default
@@ -21,7 +21,7 @@ export function removeClass(element, classname) {
 }
 
 // http://stackoverflow.com/questions/2234979/how-to-check-in-javascript-if-one-element-is-a-child-of-another
-export function isOrContainsNode(ancestor, descendant, within) {
+export function isOrContainsNode(ancestor, descendant, within?: boolean) {
   var node = within ? descendant.parentNode : descendant;
   while (node) {
     if (node === ancestor) return true;
@@ -50,7 +50,7 @@ export function isMediaNode(node) {
  * @param {HTMLElement} child
  */
 export function appendChild(parent, child) {
-  parent && parent.appendChild(child);
+  return parent && parent.appendChild(child);
 }
 
 /**
@@ -75,10 +75,10 @@ export function setAttribute(element, name, value) {
 
 /**
  * Set DOM element style
- * @param {HTMLElement} element 
- * @param {String} name 
- * @param {String} value 
+ * @param {HTMLElement} element
+ * @param {String} name
+ * @param {String} value
  */
-export function setStyle(element, name, value){
+export function setStyle(element, name, value) {
   element.style[name] = value;
 }
